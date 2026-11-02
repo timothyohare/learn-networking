@@ -10,10 +10,25 @@ moving into IT from another engineering field, with SD-WAN as the long-term goal
 | [`osi-slides.html`](osi-slides.html) | A 13-slide deck in one self-contained HTML file. It follows one web request from Layer 7 down to Layer 1 and shows the bundle growing as each layer adds its header. |
 | [`osi-handout.md`](osi-handout.md) | A standalone reference handout: layer summary, worked example, header field tables, troubleshooting checklist, glossary and a learning path to SD-WAN. |
 
+## View online
+
+**Slides:** <https://timothyohare.github.io/learn-networking/osi-slides.html>
+
+No download needed. It works on a laptop, tablet or phone.
+
 ## Using the slides
 
-Download `osi-slides.html` and open it in any browser. It works offline.
-
 - **← / →** or **space** to move between slides, **F** for full screen
-- Add `#7` to the URL to jump straight to slide 7
+- On a phone or tablet, swipe left and right
+- Add `#7` to the URL to jump straight to slide 7, e.g.
+  [`osi-slides.html#7`](https://timothyohare.github.io/learn-networking/osi-slides.html#7)
 - Print (or "Save as PDF") gives one slide per page
+
+To use the slides offline, download `osi-slides.html` and open it in any
+browser. It's a single file with no external dependencies.
+
+## How the site is published
+
+The site is served by **GitHub Pages** from the root of the `main` branch
+(Settings → Pages → Deploy from a branch → `main` / `/ (root)`). Every push to
+`main` republishes it automatically within a minute or two.

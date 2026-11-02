@@ -1,6 +1,8 @@
 # The OSI Model: A Reference Handout
 
-A companion to the slide deck (`osi-slides.html`). Read it at your own pace. It
+A companion to the slide deck
+([view it online](https://timothyohare.github.io/learn-networking/osi-slides.html)).
+Read it at your own pace. It
 follows the same example as the slides, then adds reference tables, a
 troubleshooting checklist and a glossary.
 
