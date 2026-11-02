@@ -1,0 +1,878 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The OSI Model</title>
+<meta name="description" content="A layer-by-layer walkthrough of the OSI model, following one web request as each layer wraps it in a new header.">
+<style>
+:root {
+  --bg: #f6f4ef;
+  --surface: #ffffff;
+  --surface-2: #efece4;
+  --ink: #1d1c1a;
+  --muted: #625e57;
+  --line: #ddd8cd;
+  --accent: #0f766e;
+  --note-bg: #fff7e0;
+  --note-line: #e8c766;
+  --code-bg: #f1eee7;
+
+  /* One fixed colour per layer, used everywhere */
+  --l7: #6d28d9; --l7-ink: #ffffff;
+  --l6: #be185d; --l6-ink: #ffffff;
+  --l5: #c2410c; --l5-ink: #ffffff;
+  --l4: #b45309; --l4-ink: #ffffff;
+  --l3: #15803d; --l3-ink: #ffffff;
+  --l2: #0369a1; --l2-ink: #ffffff;
+  --l1: #475569; --l1-ink: #ffffff;
+  --sd: #0f766e; --sd-ink: #ffffff;
+
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #151513; --surface: #1f1e1b; --surface-2: #2a2925; --ink: #edeae3; --muted: #a8a399;
+    --line: #3a3833; --accent: #2dd4bf; --note-bg: #2b2616; --note-line: #7a6424; --code-bg: #262521;
+    --l1: #5b6b80;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #151513; --surface: #1f1e1b; --surface-2: #2a2925; --ink: #edeae3; --muted: #a8a399;
+  --line: #3a3833; --accent: #2dd4bf; --note-bg: #2b2616; --note-line: #7a6424; --code-bg: #262521;
+  --l1: #5b6b80;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: clamp(14px, 0.85vw + 6px, 19px);
+  line-height: 1.45;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+code, .mono { font-family: var(--mono); font-size: 0.92em; }
+h1, h2, h3 { line-height: 1.15; margin: 0; letter-spacing: -0.01em; }
+p { margin: 0 0 0.6em; }
+
+/* ---------- Deck shell ---------- */
+#deck { position: fixed; inset: 0 0 56px 0; }
+.slide {
+  position: absolute; inset: 0;
+  display: none;
+  overflow-y: auto; overflow-x: hidden;
+  padding: clamp(16px, 3.5vh, 44px) clamp(16px, 4.5vw, 72px) 24px;
+}
+.slide.active { display: block; }
+.wrap { max-width: 1240px; margin: 0 auto; width: 100%; }
+
+.hud {
+  position: fixed; left: 0; right: 0; bottom: 0; height: 56px;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 0 clamp(16px, 4.5vw, 72px);
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+  font-size: 14px; color: var(--muted);
+}
+.hud .title { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; min-width: 0; }
+.hud .ctrls { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.hud button {
+  font: inherit; color: var(--ink); background: var(--surface-2);
+  border: 1px solid var(--line); border-radius: 8px;
+  min-width: 44px; height: 38px; cursor: pointer;
+}
+.hud button:hover { border-color: var(--muted); }
+.hud button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.progress { position: fixed; left: 0; bottom: 56px; height: 3px; background: var(--accent); transition: width .25s ease; }
+
+/* ---------- Typography blocks ---------- */
+.kicker {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 0.78em; font-weight: 650; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 6px;
+}
+.kicker .chip { width: 14px; height: 14px; border-radius: 4px; display: inline-block; }
+h2 { font-size: clamp(26px, 2.4vw + 10px, 44px); margin-bottom: 8px; }
+.lede { font-size: 1.08em; color: var(--muted); max-width: 62ch; margin-bottom: 14px; }
+.small { font-size: 0.85em; color: var(--muted); }
+
+.grid-2 { display: grid; grid-template-columns: 1.25fr 1fr; gap: clamp(14px, 2vw, 28px); align-items: start; }
+.grid-2.even { grid-template-columns: 1fr 1fr; }
+.grid-2 > * { min-width: 0; }
+.stack-gap > * + * { margin-top: 12px; }
+
+.card {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+  padding: 14px 16px;
+}
+.card h3 { font-size: 0.95em; margin-bottom: 6px; }
+.note {
+  background: var(--note-bg); border: 1px solid var(--note-line); border-radius: 12px;
+  padding: 12px 16px; font-size: 0.92em;
+}
+.note strong:first-child { display: block; margin-bottom: 2px; }
+.analogy { border-left: 4px solid var(--layer, var(--accent)); }
+.analogy .tag { font-size: 0.75em; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.takeaway { background: var(--surface-2); border-radius: 12px; padding: 12px 16px; font-weight: 600; }
+
+/* ---------- Layer slide header row ---------- */
+.layer-head { display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: start; }
+.pdu-badge {
+  border: 2px solid var(--layer); border-radius: 12px; padding: 8px 14px; text-align: center;
+  background: var(--surface); min-width: 120px;
+}
+.pdu-badge .lbl { font-size: 0.7em; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.pdu-badge .val { font-size: 1.25em; font-weight: 700; color: var(--layer); }
+
+/* ---------- Mini stack (where am I?) ---------- */
+.ministack { display: flex; gap: 4px; margin: 4px 0 12px; flex-wrap: wrap; }
+.ministack span {
+  font-size: 0.72em; font-weight: 650; padding: 3px 8px; border-radius: 6px;
+  background: var(--surface-2); color: var(--muted); border: 1px solid var(--line);
+}
+.ministack span.done { opacity: .55; }
+.ministack span.here { color: #fff; border-color: transparent; }
+
+/* ---------- The growing frame bar ---------- */
+.frame-block { margin: 6px 0 16px; }
+.frame-meta {
+  display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 16px;
+  font-size: 0.82em; color: var(--muted); margin-bottom: 6px;
+}
+.frame-meta b { color: var(--ink); }
+.framebar-track { width: 100%; }
+.framebar {
+  display: flex; height: 58px; border-radius: 10px; overflow: hidden;
+  border: 1px solid var(--line); background: var(--surface);
+  transition: width .5s ease;
+}
+.seg {
+  position: relative; min-width: 0;
+  display: flex; flex-direction: column; justify-content: center; align-items: center;
+  font-size: 12px; line-height: 1.15; text-align: center; padding: 0 2px;
+  background: var(--c); color: var(--ci);
+  border-right: 1px solid color-mix(in srgb, var(--bg) 60%, transparent);
+  white-space: nowrap; overflow: hidden;
+}
+.seg:last-child { border-right: 0; }
+.seg .n { font-weight: 700; }
+.seg .b { opacity: .9; font-size: 11px; }
+.seg.old { filter: saturate(.25); opacity: .55; }
+.seg.new { box-shadow: inset 0 0 0 3px color-mix(in srgb, #fff 70%, transparent); }
+.seg.enc {
+  background-image: repeating-linear-gradient(135deg, transparent 0 7px, rgba(255,255,255,.18) 7px 14px);
+}
+.slide.active .seg.new { animation: pop .55s ease both; }
+@keyframes pop { from { opacity: 0; transform: scaleY(.4); } to { opacity: 1; transform: none; } }
+.session-bracket {
+  margin-top: 6px; border: 2px dashed var(--l5); border-top: 0; border-radius: 0 0 10px 10px;
+  height: 14px; position: relative;
+}
+.session-bracket span {
+  position: absolute; left: 50%; top: 10px; transform: translateX(-50%);
+  background: var(--bg); padding: 0 8px; color: var(--l5); font-weight: 650; font-size: 0.8em; white-space: nowrap;
+}
+
+/* ---------- Field tables ---------- */
+table.fields { width: 100%; border-collapse: collapse; font-size: 0.86em; background: var(--surface); border-radius: 12px; overflow: hidden; border: 1px solid var(--line); }
+table.fields caption { text-align: left; font-weight: 700; padding: 0 0 6px; font-size: 1em; }
+table.fields th, table.fields td { padding: 5px 10px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
+table.fields tr:last-child td { border-bottom: 0; }
+table.fields th { background: var(--surface-2); font-size: 0.82em; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 650; }
+table.fields td.sz { white-space: nowrap; color: var(--muted); }
+table.fields td.ex { font-family: var(--mono); font-size: 0.92em; white-space: nowrap; }
+table.fields tr.hl td { background: color-mix(in srgb, var(--layer) 10%, var(--surface)); }
+table.fields td.ex.wrap-ok { white-space: normal; }
+
+pre.req {
+  background: var(--code-bg); border: 1px solid var(--line); border-radius: 12px;
+  padding: 12px 14px; margin: 0; font-family: var(--mono); font-size: 0.88em; overflow-x: auto;
+  line-height: 1.6;
+}
+pre.req .c { color: var(--muted); }
+.bits {
+  font-family: var(--mono); font-size: 0.8em; letter-spacing: .08em; word-break: keep-all; overflow-wrap: normal;
+  background: var(--code-bg); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px;
+}
+.bits .p { color: var(--l1); font-weight: 700; }
+.bits .s { color: var(--accent); font-weight: 700; }
+
+/* ---------- Title slide ---------- */
+.title-slide .wrap { min-height: 100%; display: flex; flex-direction: column; justify-content: center; }
+.title-slide h1 { font-size: clamp(36px, 4.5vw + 12px, 76px); margin-bottom: 14px; }
+.title-slide .rainbow { display: flex; height: 10px; border-radius: 6px; overflow: hidden; max-width: 520px; margin: 22px 0; }
+.title-slide .rainbow i { flex: 1; }
+
+/* ---------- Big stack (slide 2, 12) ---------- */
+.bigstack { display: flex; flex-direction: column; gap: 5px; }
+.bigstack .row {
+  display: grid; grid-template-columns: 34px 9.5em 1fr; gap: 10px; align-items: center;
+  padding: 7px 12px; border-radius: 10px; background: var(--c); color: var(--ci);
+}
+.bigstack .num { font-weight: 800; font-size: 1.1em; }
+.bigstack .nm { font-weight: 700; }
+.bigstack .job { font-size: 0.86em; opacity: .95; }
+
+/* ---------- Journey (slide 3) ---------- */
+.journey { display: grid; grid-template-columns: 1fr auto 1fr auto 1fr auto 1fr; align-items: center; gap: 8px; margin: 12px 0 18px; }
+.node { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 12px; text-align: center; }
+.node .ico { font-size: 1.8em; line-height: 1; }
+.node .nm { font-weight: 700; margin: 4px 0 2px; }
+.node .ad { font-family: var(--mono); font-size: 0.74em; color: var(--muted); line-height: 1.5; }
+.arrow { color: var(--muted); font-size: 1.4em; }
+.cloud { border-style: dashed; }
+
+/* ---------- Compare (slide 12) ---------- */
+.compare { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: repeat(7, auto); gap: 5px 14px; }
+.compare .o, .compare .t { border-radius: 10px; padding: 8px 12px; background: var(--c); color: var(--ci); font-weight: 650; display: flex; align-items: center; }
+.compare .t { justify-content: center; text-align: center; background: var(--surface); color: var(--ink); border: 2px solid var(--c); }
+.compare .hdr { font-size: 0.78em; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 650; }
+
+/* ---------- Unwrap list (slide 11) ---------- */
+.unwrap { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.unwrap li { display: grid; grid-template-columns: 34px 1fr; gap: 10px; align-items: start; padding: 6px 10px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); font-size: 0.88em; }
+.unwrap li b.n { color: #fff; background: var(--c); border-radius: 6px; text-align: center; font-size: 0.85em; padding: 1px 0; }
+
+/* ---------- Roadmap (slide 13) ---------- */
+.roadmap { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; counter-reset: step; }
+.roadmap div { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; font-size: 0.86em; }
+.roadmap div::before { counter-increment: step; content: counter(step); display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: var(--bg); font-weight: 800; font-size: 0.85em; margin-bottom: 4px; }
+.roadmap div.goal { border: 2px solid var(--accent); }
+.roadmap b { display: block; }
+
+/* ---------- Responsive ---------- */
+@media (max-width: 900px) {
+  .grid-2, .grid-2.even { grid-template-columns: 1fr; }
+  .journey { grid-template-columns: 1fr; }
+  .journey .arrow { transform: rotate(90deg); justify-self: center; }
+  .roadmap { grid-template-columns: 1fr 1fr; }
+  .layer-head { grid-template-columns: 1fr; }
+  .pdu-badge { justify-self: start; }
+}
+@media (max-width: 600px) {
+  .seg .n { font-size: 10px; }
+  .seg .b { display: none; }
+  .framebar { height: 46px; }
+  .bigstack .row { grid-template-columns: 26px 1fr; }
+  .bigstack .job { grid-column: 2; }
+  table.fields { font-size: 0.78em; }
+  table.fields td.ex { white-space: normal; word-break: break-word; }
+  table.fields th:nth-child(4), table.fields td:nth-child(4) { display: none; }
+  .hud .title { display: none; }
+  .roadmap { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+
+/* ---------- Print: one slide per page ---------- */
+@media print {
+  @page { size: landscape; margin: 10mm; }
+  body { overflow: visible; background: #fff; }
+  #deck { position: static; }
+  .slide { display: block !important; position: relative; inset: auto; overflow: visible; page-break-after: always; break-after: page; padding: 0; }
+  .hud, .progress { display: none; }
+  .seg.new { animation: none; }
+  body { font-size: 10.5pt; }
+  h2 { font-size: 22pt; }
+  .title-slide h1 { font-size: 40pt; }
+  .grid-2 { grid-template-columns: 1.25fr 1fr !important; }
+  .grid-2.even { grid-template-columns: 1fr 1fr !important; }
+  .layer-head { grid-template-columns: 1fr auto !important; }
+  .journey { grid-template-columns: 1fr auto 1fr auto 1fr auto 1fr !important; }
+  .journey .arrow { transform: none !important; }
+  .roadmap { grid-template-columns: repeat(5, 1fr) !important; }
+  .slide, .card, table.fields { break-inside: avoid; }
+  .title-slide .wrap { min-height: 170mm; }
+}
+</style>
+</head>
+<body>
+
+<main id="deck" aria-live="polite">
+
+<!-- 1 · Title -->
+<section class="slide title-slide" data-title="Title">
+  <div class="wrap">
+    <div class="kicker">Networking from first principles</div>
+    <h1>How data travels:<br>the OSI model</h1>
+    <p class="lede">One web request, followed from the browser down to the wire. Each layer adds its own wrapper, and we'll watch the bundle grow.</p>
+    <div class="rainbow" aria-hidden="true">
+      <i style="background:var(--l7)"></i><i style="background:var(--l6)"></i><i style="background:var(--l5)"></i><i style="background:var(--l4)"></i><i style="background:var(--l3)"></i><i style="background:var(--l2)"></i><i style="background:var(--l1)"></i>
+    </div>
+    <p class="small">Use ← → or space to move · press <b>F</b> for full screen · each layer keeps its colour on every slide</p>
+  </div>
+</section>
+
+<!-- 2 · Why layers -->
+<section class="slide" data-title="Why layers?">
+  <div class="wrap">
+    <div class="kicker">The big picture</div>
+    <h2>Why split networking into layers?</h2>
+    <div class="grid-2">
+      <div class="bigstack" id="bigstack"></div>
+      <div class="stack-gap">
+        <div class="card analogy">
+          <div class="tag">Think of a building site</div>
+          <p>The electrician doesn't redesign the footings, and the concreter doesn't care what colour the walls are. Each trade relies on the one below it and serves the one above it, using agreed interfaces.</p>
+          <p style="margin:0">Network layers work the same way. Wi-Fi can be swapped for fibre without the web browser ever knowing.</p>
+        </div>
+        <div class="card">
+          <h3>Encapsulation = packing a shipment</h3>
+          <p style="margin:0">Going <b>down</b> the stack, each layer puts the bundle from above into its own wrapper with a label (a <b>header</b>). At the other end, each layer removes only its own wrapper and passes the rest up.</p>
+        </div>
+        <div class="takeaway">Remember top-down: <i>All People Seem To Need Data Processing</i></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 3 · The journey -->
+<section class="slide" data-title="Our example">
+  <div class="wrap">
+    <div class="kicker">The running example</div>
+    <h2>Alex's laptop loads <code>https://example.com/</code></h2>
+    <p class="lede">We'll follow this one request through every layer on the laptop, then across the router, then up the stack at the server.</p>
+    <div class="journey">
+      <div class="node">
+        <div class="ico" aria-hidden="true">💻</div>
+        <div class="nm">Alex's laptop</div>
+        <div class="ad">IP 192.168.1.10<br>MAC a4:83:e7:12:34:56<br>port 51514</div>
+      </div>
+      <div class="arrow" aria-hidden="true">→</div>
+      <div class="node">
+        <div class="ico" aria-hidden="true">📶</div>
+        <div class="nm">Home router</div>
+        <div class="ad">LAN 192.168.1.1<br>MAC 3c:22:fb:aa:bb:cc<br>public 203.0.113.7</div>
+      </div>
+      <div class="arrow" aria-hidden="true">→</div>
+      <div class="node cloud">
+        <div class="ico" aria-hidden="true">☁️</div>
+        <div class="nm">The internet</div>
+        <div class="ad">many routers,<br>each passing it on<br>one hop at a time</div>
+      </div>
+      <div class="arrow" aria-hidden="true">→</div>
+      <div class="node">
+        <div class="ico" aria-hidden="true">🗄️</div>
+        <div class="nm">Web server</div>
+        <div class="ad">IP 198.51.100.80<br>port 443 (HTTPS)<br>example.com</div>
+      </div>
+    </div>
+    <div class="grid-2 even">
+      <div class="card"><h3>Two kinds of address</h3><p style="margin:0"><b>IP address</b>: the final destination, like a street address. <b>MAC address</b>: the next device on this cable or Wi-Fi, like "the depot down the road".</p></div>
+      <div class="note"><strong>Illustrative values</strong>The addresses come from ranges reserved for examples and documentation. Header sizes are the standard minimums (no optional extras).</div>
+    </div>
+  </div>
+</section>
+
+<!-- 4 · L7 -->
+<section class="slide" data-title="Layer 7 · Application" data-layer="7" style="--layer:var(--l7)">
+  <div class="wrap">
+    <div class="layer-head">
+      <div>
+        <div class="kicker"><span class="chip" style="background:var(--l7)"></span>Layer 7 · Application</div>
+        <h2>What does the user actually want?</h2>
+        <p class="lede">The browser writes an HTTP request. This is the real <b>payload</b>, the thing every other layer exists to deliver.</p>
+      </div>
+      <div class="pdu-badge"><div class="lbl">Unit is called</div><div class="val">Data</div></div>
+    </div>
+    <div class="ministack" data-here="7"></div>
+    <div class="frame-block" data-upto="7"></div>
+    <div class="grid-2">
+      <div>
+        <pre class="req" aria-label="HTTP request">GET / HTTP/1.1          <span class="c">← "send me the home page"</span>
+Host: example.com       <span class="c">← which website (one server hosts many)</span>
+User-Agent: Mozilla/5.0 <span class="c">← which browser is asking</span>
+Accept: */*             <span class="c">← any reply format is fine</span>
+                        <span class="c">← blank line = end of request</span></pre>
+        <p class="small" style="margin-top:6px">75 bytes in total, counting the hidden line-break characters.</p>
+      </div>
+      <div class="stack-gap">
+        <div class="card analogy"><div class="tag">Analogy</div>The project brief: what the client wants delivered, written in their own words. It says nothing about trucks or roads.</div>
+        <div class="card"><h3>Other Layer 7 protocols</h3><p style="margin:0">DNS (names → IP addresses), SMTP/IMAP (email), SSH, FTP. <span class="small">Before this request, DNS already turned <code>example.com</code> into <code>198.51.100.80</code>.</span></p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 5 · L6 -->
+<section class="slide" data-title="Layer 6 · Presentation" data-layer="6" style="--layer:var(--l6)">
+  <div class="wrap">
+    <div class="layer-head">
+      <div>
+        <div class="kicker"><span class="chip" style="background:var(--l6)"></span>Layer 6 · Presentation</div>
+        <h2>Format it and lock it up</h2>
+        <p class="lede">This layer agrees how data is represented (text encoding, compression) and, here, <b>encrypts</b> it with TLS, the "S" in HTTPS.</p>
+      </div>
+      <div class="pdu-badge"><div class="lbl">Unit is called</div><div class="val">Data</div></div>
+    </div>
+    <div class="ministack" data-here="6"></div>
+    <div class="frame-block" data-upto="6"></div>
+    <div class="grid-2">
+      <table class="fields">
+        <thead><tr><th>Field</th><th>Size</th><th>Example</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr class="hl"><td>Content type</td><td class="sz">1 B</td><td class="ex">23</td><td>"This record carries application data"</td></tr>
+          <tr class="hl"><td>Version</td><td class="sz">2 B</td><td class="ex">0x0303</td><td>A legacy label, kept for compatibility</td></tr>
+          <tr class="hl"><td>Length</td><td class="sz">2 B</td><td class="ex">92</td><td>How many encrypted bytes follow</td></tr>
+          <tr><td>HTTP request</td><td class="sz">75 B</td><td class="ex">8f 3a c1 9e 07…</td><td>Same size, now unreadable</td></tr>
+          <tr class="hl"><td>Trailer: hidden type + tag</td><td class="sz">1 + 16 B</td><td class="ex">(sealed)</td><td>Tamper-evident seal. Any change is detected</td></tr>
+        </tbody>
+      </table>
+      <div class="stack-gap">
+        <div class="card analogy"><div class="tag">Analogy</div>Converting the drawings to the agreed standard, then putting confidential documents in a sealed, tamper-evident envelope.</div>
+        <div class="note"><strong>Honest simplification</strong>TLS doesn't sit neatly in one OSI layer. It handles both the secure session (L5) and encryption (L6). Teaching it at L6 is the usual convention.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 6 · L5 -->
+<section class="slide" data-title="Layer 5 · Session" data-layer="5" style="--layer:var(--l5)">
+  <div class="wrap">
+    <div class="layer-head">
+      <div>
+        <div class="kicker"><span class="chip" style="background:var(--l5)"></span>Layer 5 · Session</div>
+        <h2>Open, keep and close the conversation</h2>
+        <p class="lede">The session layer manages the <i>dialogue</i>: who's talking, whether it's still alive, and how it ends cleanly.</p>
+      </div>
+      <div class="pdu-badge"><div class="lbl">Unit is called</div><div class="val">Data</div></div>
+    </div>
+    <div class="ministack" data-here="5"></div>
+    <div class="frame-block" data-upto="5"></div>
+    <div class="grid-2">
+      <div class="stack-gap">
+        <div class="card"><h3>① Open</h3><p style="margin:0">TCP's 3-way handshake (SYN → SYN-ACK → ACK), then the TLS handshake: check the server's certificate and agree on encryption keys.</p></div>
+        <div class="card"><h3>② Maintain</h3><p style="margin:0">Remember the keys, keep the connection alive, and allow a dropped session to resume quickly.</p></div>
+        <div class="card"><h3>③ Close</h3><p style="margin:0">TLS sends <code>close_notify</code>, then TCP exchanges FIN messages so both sides agree it's over.</p></div>
+      </div>
+      <div class="stack-gap">
+        <div class="note"><strong>No new bytes at this layer</strong>Look at the bar: it's the same size as Layer 6. In the real internet (TCP/IP), Layers 5–7 are merged, so session work is done by TLS and TCP rather than a separate header.</div>
+        <div class="card analogy"><div class="tag">Analogy</div>The contract period: mobilise and open the job, keep the site running day to day, then formally close it out.</div>
+        <div class="takeaway">OSI is a <i>model</i>, a way of thinking. Real protocols don't always fit its boxes.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 7 · L4 -->
+<section class="slide" data-title="Layer 4 · Transport" data-layer="4" style="--layer:var(--l4)">
+  <div class="wrap">
+    <div class="layer-head">
+      <div>
+        <div class="kicker"><span class="chip" style="background:var(--l4)"></span>Layer 4 · Transport</div>
+        <h2>Deliver it reliably, to the right program</h2>
+        <p class="lede">TCP adds a 20-byte header. <b>Ports</b> pick the program on each computer, and <b>sequence numbers</b> let missing or out-of-order pieces be fixed.</p>
+      </div>
+      <div class="pdu-badge"><div class="lbl">Unit is called</div><div class="val">Segment</div></div>
+    </div>
+    <div class="ministack" data-here="4"></div>
+    <div class="frame-block" data-upto="4"></div>
+    <div class="grid-2">
+      <table class="fields">
+        <thead><tr><th>Field</th><th>Size</th><th>Example</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr class="hl"><td>Source port</td><td class="sz">2 B</td><td class="ex">51514</td><td>The browser tab's temporary "door"</td></tr>
+          <tr class="hl"><td>Destination port</td><td class="sz">2 B</td><td class="ex">443</td><td>The service on the server (443 = HTTPS)</td></tr>
+          <tr><td>Sequence number</td><td class="sz">4 B</td><td class="ex">1001</td><td>Byte position, so pieces go back in order</td></tr>
+          <tr><td>Acknowledgement no.</td><td class="sz">4 B</td><td class="ex">5001</td><td>"I've received everything up to here"</td></tr>
+          <tr><td>Header length + flags</td><td class="sz">2 B</td><td class="ex">5 · PSH, ACK</td><td>20 B header, "here's data, and an ack"</td></tr>
+          <tr><td>Window</td><td class="sz">2 B</td><td class="ex">64240</td><td>How much more I can accept right now</td></tr>
+          <tr><td>Checksum</td><td class="sz">2 B</td><td class="ex">(calculated)</td><td>Detects a corrupted segment</td></tr>
+          <tr><td>Urgent pointer</td><td class="sz">2 B</td><td class="ex">0</td><td>Rarely used</td></tr>
+        </tbody>
+      </table>
+      <div class="stack-gap">
+        <div class="card analogy"><div class="tag">Analogy</div>The delivery docket: every pallet is numbered, the receiver signs for what arrived, and anything missing is re-sent. The port is the loading dock number at each building.</div>
+        <div class="card"><h3>TCP vs UDP</h3><p style="margin:0"><b>UDP</b> has an 8-byte header: just ports, length and checksum. No handshake, no re-sending. It's used where speed beats perfection: voice, video and DNS.</p></div>
+        <p class="small">Sequence numbers shown are simplified "relative" values.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 8 · L3 -->
+<section class="slide" data-title="Layer 3 · Network" data-layer="3" style="--layer:var(--l3)">
+  <div class="wrap">
+    <div class="layer-head">
+      <div>
+        <div class="kicker"><span class="chip" style="background:var(--l3)"></span>Layer 3 · Network</div>
+        <h2>Address it for the far end of the world</h2>
+        <p class="lede">IP adds a 20-byte header with the <b>source and destination IP addresses</b>. Routers read this to choose the next hop, one hop at a time.</p>
+      </div>
+      <div class="pdu-badge"><div class="lbl">Unit is called</div><div class="val">Packet</div></div>
+    </div>
+    <div class="ministack" data-here="3"></div>
+    <div class="frame-block" data-upto="3"></div>
+    <div class="grid-2">
+      <table class="fields">
+        <thead><tr><th>Field</th><th>Size</th><th>Example</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td>Version + header length</td><td class="sz">1 B</td><td class="ex">4 · 5</td><td>IPv4, header is 5×4 = 20 B</td></tr>
+          <tr><td>DSCP / ECN</td><td class="sz">1 B</td><td class="ex">0</td><td>Priority marking (SD-WAN uses this!)</td></tr>
+          <tr><td>Total length</td><td class="sz">2 B</td><td class="ex">137</td><td>Whole packet size in bytes</td></tr>
+          <tr><td>ID + flags + fragment</td><td class="sz">4 B</td><td class="ex">0x1c46 · DF</td><td>Used if a packet must be split</td></tr>
+          <tr class="hl"><td>Time to live (TTL)</td><td class="sz">1 B</td><td class="ex">64</td><td>Hops left, so lost packets can't loop forever</td></tr>
+          <tr><td>Protocol</td><td class="sz">1 B</td><td class="ex">6 (TCP)</td><td>What's inside</td></tr>
+          <tr><td>Header checksum</td><td class="sz">2 B</td><td class="ex">0x31f3</td><td>Detects a corrupted header</td></tr>
+          <tr class="hl"><td>Source address</td><td class="sz">4 B</td><td class="ex">192.168.1.10</td><td>Alex's laptop</td></tr>
+          <tr class="hl"><td>Destination address</td><td class="sz">4 B</td><td class="ex">198.51.100.80</td><td>The web server</td></tr>
+        </tbody>
+      </table>
+      <div class="stack-gap">
+        <div class="card analogy"><div class="tag">Analogy</div>The road network and street addresses. The address stays the same for the whole trip, while each intersection (router) decides which road to take next.</div>
+        <div class="takeaway">IP address = <i>final</i> destination. It stays the same end to end (except where NAT changes it, coming up).</div>
+        <div class="card"><h3>Lives here</h3><p style="margin:0">IPv4, IPv6, ICMP (<code>ping</code>), and <b>routers</b>.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 9 · L2 -->
+<section class="slide" data-title="Layer 2 · Data Link" data-layer="2" style="--layer:var(--l2)">
+  <div class="wrap">
+    <div class="layer-head">
+      <div>
+        <div class="kicker"><span class="chip" style="background:var(--l2)"></span>Layer 2 · Data Link</div>
+        <h2>Get it to the next box on this link</h2>
+        <p class="lede">Ethernet wraps the packet with a 14-byte <b>header</b> and a 4-byte <b>trailer</b>. Its addresses (MACs) only matter on the local cable or Wi-Fi.</p>
+      </div>
+      <div class="pdu-badge"><div class="lbl">Unit is called</div><div class="val">Frame</div></div>
+    </div>
+    <div class="ministack" data-here="2"></div>
+    <div class="frame-block" data-upto="2"></div>
+    <div class="grid-2">
+      <table class="fields">
+        <thead><tr><th>Field</th><th>Size</th><th>Example</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr class="hl"><td>Destination MAC</td><td class="sz">6 B</td><td class="ex">3c:22:fb:aa:bb:cc</td><td>The <b>router</b>, not the server!</td></tr>
+          <tr class="hl"><td>Source MAC</td><td class="sz">6 B</td><td class="ex">a4:83:e7:12:34:56</td><td>Alex's laptop</td></tr>
+          <tr class="hl"><td>EtherType</td><td class="sz">2 B</td><td class="ex">0x0800</td><td>"An IPv4 packet is inside"</td></tr>
+          <tr><td colspan="4" class="small" style="text-align:center">… the 137-byte IP packet …</td></tr>
+          <tr class="hl"><td>Frame check sequence</td><td class="sz">4 B</td><td class="ex">CRC-32</td><td>Trailer. A damaged frame is silently dropped</td></tr>
+        </tbody>
+      </table>
+      <div class="stack-gap">
+        <div class="card analogy"><div class="tag">Analogy</div>One leg of the trip: the local driver between two neighbouring depots. Every leg gets a new driver and a new docket, but the street address on the box never changes.</div>
+        <div class="takeaway">MAC = <i>next hop</i>. IP = <i>final destination</i>. That split is the key to routing.</div>
+        <div class="card"><h3>How did the laptop learn the router's MAC?</h3><p style="margin:0"><b>ARP</b> broadcasts "who has 192.168.1.1?" and the router replies with its MAC. <b>Switches</b> live at this layer.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 10 · L1 -->
+<section class="slide" data-title="Layer 1 · Physical" data-layer="1" style="--layer:var(--l1)">
+  <div class="wrap">
+    <div class="layer-head">
+      <div>
+        <div class="kicker"><span class="chip" style="background:var(--l1)"></span>Layer 1 · Physical</div>
+        <h2>Turn it into signals on the wire</h2>
+        <p class="lede">The network card adds an 8-byte wake-up pattern and sends every bit as voltage, light or radio. 163 bytes is 1,304 bits, about 1.3 µs at 1 Gb/s.</p>
+      </div>
+      <div class="pdu-badge"><div class="lbl">Unit is called</div><div class="val">Bits</div></div>
+    </div>
+    <div class="ministack" data-here="1"></div>
+    <div class="frame-block" data-upto="1"></div>
+    <div class="grid-2">
+      <div class="stack-gap">
+        <table class="fields">
+          <thead><tr><th>Field</th><th>Size</th><th>Example</th><th>Meaning</th></tr></thead>
+          <tbody>
+            <tr class="hl"><td>Preamble</td><td class="sz">7 B</td><td class="ex">10101010 ×7</td><td>Lets the receiver lock onto the rhythm</td></tr>
+            <tr class="hl"><td>Start frame delimiter</td><td class="sz">1 B</td><td class="ex">10101011</td><td>"The frame starts now"</td></tr>
+            <tr><td>Inter-frame gap</td><td class="sz">12 B</td><td class="ex">(silence)</td><td>Required quiet time before the next frame</td></tr>
+          </tbody>
+        </table>
+        <div class="bits" aria-label="Start of the bit stream"><span class="p">10101010 10101010 10101010 10101010 10101010 10101010 10101010</span> <span class="s">10101011</span> 00111100 00100010 11111011 10101010 10111011 11001100 …</div>
+        <p class="small" style="margin:0">Simplified: the bytes after the SFD are the router's MAC (3c:22:fb:aa:bb:cc). Real Ethernet sends each byte lowest bit first.</p>
+      </div>
+      <div class="stack-gap">
+        <div class="card analogy"><div class="tag">Analogy</div>The road surface itself: the pavement, the lanes and the speed limit. It moves whatever is driven on it and doesn't care what's in the truck.</div>
+        <div class="card"><h3>Media</h3><p style="margin:0"><b>Copper</b> (Cat6): electrical pulses · <b>Fibre</b>: light pulses · <b>Wi-Fi</b>: radio waves (with its own frame format). Cables, connectors, hubs and repeaters live here.</p></div>
+        <div class="takeaway">Most real outages start here: unplugged cables, bad patch leads, weak Wi-Fi.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 11 · Router + unwrap -->
+<section class="slide" data-title="The trip and the unwrap">
+  <div class="wrap">
+    <div class="kicker">Crossing the network</div>
+    <h2>What the router changes, and how the server unwraps it</h2>
+    <div class="grid-2">
+      <div class="stack-gap">
+        <table class="fields" style="--layer:var(--l3)">
+          <caption>As the frame crosses Alex's home router</caption>
+          <thead><tr><th>Field</th><th>Laptop → router</th><th>Router → internet</th></tr></thead>
+          <tbody>
+            <tr class="hl"><td>Dest. MAC (L2)</td><td class="ex wrap-ok">3c:22:fb:aa:bb:cc</td><td>ISP's next device. <b>Changes every hop</b></td></tr>
+            <tr class="hl"><td>Source MAC (L2)</td><td class="ex wrap-ok">a4:83:e7:12:34:56</td><td>Router's own MAC. <b>Changes every hop</b></td></tr>
+            <tr class="hl"><td>TTL (L3)</td><td class="ex">64</td><td><span class="mono">63</span>. Each router subtracts 1</td></tr>
+            <tr class="hl"><td>IP checksum (L3)</td><td class="ex">0x31f3</td><td><span class="mono">0xb89d</span>. Recalculated</td></tr>
+            <tr class="hl"><td>Source IP (L3)</td><td class="ex">192.168.1.10</td><td><span class="mono">203.0.113.7</span>. NAT (home routers)</td></tr>
+            <tr><td>Destination IP (L3)</td><td class="ex">198.51.100.80</td><td>Unchanged</td></tr>
+            <tr><td>TCP, TLS, HTTP</td><td>encrypted</td><td>Unchanged. The router can't read it</td></tr>
+          </tbody>
+        </table>
+        <p class="small" style="margin:0">NAT may also change the source port, so the TCP checksum is updated too. Routers on the wider internet don't do NAT; they only do the MAC and TTL work.</p>
+      </div>
+      <div>
+        <h3 style="font-size:.95em;margin-bottom:6px">At the server: unwrap bottom-up</h3>
+        <ol class="unwrap">
+          <li style="--c:var(--l1)"><b class="n">L1</b><span>Hear the preamble, turn signals back into bits</span></li>
+          <li style="--c:var(--l2)"><b class="n">L2</b><span>FCS OK? Dest MAC is mine? Strip the Ethernet wrapper</span></li>
+          <li style="--c:var(--l3)"><b class="n">L3</b><span>Dest IP is mine? Protocol 6, so hand it to TCP</span></li>
+          <li style="--c:var(--l4)"><b class="n">L4</b><span>Port 443, so give it to the web server. Put it in order, send an ACK</span></li>
+          <li style="--c:var(--l5)"><b class="n">L5</b><span>Match it to the open TLS session</span></li>
+          <li style="--c:var(--l6)"><b class="n">L6</b><span>Check the seal, decrypt, recover the 75 bytes</span></li>
+          <li style="--c:var(--l7)"><b class="n">L7</b><span>Read <code>GET /</code> and send back the home page</span></li>
+        </ol>
+        <p class="small" style="margin-top:8px">The reply makes the same journey in reverse, with source and destination swapped.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 12 · OSI vs TCP/IP -->
+<section class="slide" data-title="OSI vs TCP/IP">
+  <div class="wrap">
+    <div class="kicker">The model vs the real thing</div>
+    <h2>OSI (7 layers) vs TCP/IP (4 layers)</h2>
+    <p class="lede">The internet runs on TCP/IP. OSI is the shared vocabulary engineers use to talk about it, as in "that's a Layer 2 problem".</p>
+    <div class="grid-2">
+      <div>
+        <div class="compare">
+          <div class="hdr">OSI model</div><div class="hdr" style="text-align:center">TCP/IP model</div>
+          <div class="o" style="--c:var(--l7);--ci:var(--l7-ink)">7 Application</div>
+          <div class="t" style="--c:var(--l7);grid-row:span 3">Application<br><span class="small">HTTP, TLS, DNS</span></div>
+          <div class="o" style="--c:var(--l6);--ci:var(--l6-ink)">6 Presentation</div>
+          <div class="o" style="--c:var(--l5);--ci:var(--l5-ink)">5 Session</div>
+          <div class="o" style="--c:var(--l4);--ci:var(--l4-ink)">4 Transport</div>
+          <div class="t" style="--c:var(--l4)">Transport<br><span class="small">TCP, UDP</span></div>
+          <div class="o" style="--c:var(--l3);--ci:var(--l3-ink)">3 Network</div>
+          <div class="t" style="--c:var(--l3)">Internet<br><span class="small">IP, ICMP</span></div>
+          <div class="o" style="--c:var(--l2);--ci:var(--l2-ink)">2 Data Link</div>
+          <div class="t" style="--c:var(--l2);grid-row:span 2">Link<br><span class="small">Ethernet, Wi-Fi</span></div>
+          <div class="o" style="--c:var(--l1);--ci:var(--l1-ink)">1 Physical</div>
+        </div>
+      </div>
+      <table class="fields">
+        <caption>Where common gear sits</caption>
+        <thead><tr><th>Device</th><th>Layer</th><th>Looks at</th></tr></thead>
+        <tbody>
+          <tr><td>Cable, hub, repeater</td><td>L1</td><td>Signals only</td></tr>
+          <tr><td>Switch, Wi-Fi access point</td><td>L2</td><td>MAC addresses</td></tr>
+          <tr><td>Router</td><td>L3</td><td>IP addresses</td></tr>
+          <tr><td>Firewall</td><td>L3–L4</td><td>IPs and ports</td></tr>
+          <tr><td>"Next-gen" firewall, load balancer</td><td>up to L7</td><td>The application itself</td></tr>
+          <tr><td><b>SD-WAN edge</b></td><td>L3–L7</td><td>Routes by application and link quality</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- 13 · SD-WAN bridge -->
+<section class="slide" data-title="Where SD-WAN fits">
+  <div class="wrap">
+    <div class="kicker">Looking ahead</div>
+    <h2>SD-WAN is encapsulation… again</h2>
+    <p class="lede">An SD-WAN edge takes the <b>whole IP packet</b> we just built, encrypts it, and wraps it in a <i>new</i> outer IP header addressed to another office. This is a <b>tunnel</b> across the internet.</p>
+    <div class="frame-block" data-tunnel="1"></div>
+    <div class="grid-2 even" style="margin-bottom:14px">
+      <div class="card"><h3>Why it matters</h3><p style="margin:0">Each tunnelled packet carries ≈63 B of extra headers (IPsec with NAT traversal, typical case). A standard link carries at most 1,500 B per packet, so big packets can need splitting. That's an <b>MTU</b> problem, and it's very common in SD-WAN work.</p></div>
+      <div class="card"><h3>What's "software-defined" about it?</h3><p style="margin:0">A central controller decides which tunnel each application uses, e.g. video calls over fibre and backups over 4G. It reads L3–L7 info such as DSCP marks, ports and app signatures, plus live link quality.</p></div>
+    </div>
+    <div class="roadmap">
+      <div><b>IP addressing</b>Subnets, CIDR, private vs public</div>
+      <div><b>Switching</b>VLANs, ARP, MAC tables</div>
+      <div><b>Routing</b>Static routes, OSPF, BGP basics</div>
+      <div><b>VPNs and IPsec</b>Tunnels, encryption, MTU</div>
+      <div class="goal"><b>SD-WAN</b>Overlays, policies, controllers</div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<div class="progress" id="progress"></div>
+<nav class="hud" aria-label="Slide controls">
+  <div class="title" id="hudTitle"></div>
+  <div class="ctrls">
+    <button id="prev" aria-label="Previous slide">←</button>
+    <span id="count" aria-live="polite">1 / 13</span>
+    <button id="next" aria-label="Next slide">→</button>
+  </div>
+</nav>
+
+<script>
+/* ===== Single source of truth for every number in the deck =====
+   (check-consistency script compares these with the handout) */
+const NET = {
+  httpBytes: 75,
+  tlsHeader: 5, tlsTrailer: 17, tlsRecordLen: 92,
+  tcpHeader: 20, ipHeader: 20, ipTotal: 137,
+  ethHeader: 14, fcs: 4, frameTotal: 155,
+  preambleSfd: 8, wireTotal: 163, ifg: 12,
+  laptopIp: "192.168.1.10", routerLanIp: "192.168.1.1", publicIp: "203.0.113.7", serverIp: "198.51.100.80",
+  laptopMac: "a4:83:e7:12:34:56", routerMac: "3c:22:fb:aa:bb:cc",
+  srcPort: 51514, dstPort: 443, ttl: 64, ipChecksum: "0x31f3", ipChecksumAfterNat: "0xb89d",
+  tunnelOverhead: 63
+};
+
+const LAYERS = {
+  7: { name: "Application",  job: "What the user wants: HTTP, DNS, email" },
+  6: { name: "Presentation", job: "Format, compress, encrypt: TLS, UTF-8, JPEG" },
+  5: { name: "Session",      job: "Open, keep and close conversations" },
+  4: { name: "Transport",    job: "Reliable delivery to the right program: TCP, UDP" },
+  3: { name: "Network",      job: "Addresses and routes across networks: IP" },
+  2: { name: "Data Link",    job: "Delivery to the next box on the link: Ethernet, Wi-Fi" },
+  1: { name: "Physical",     job: "Bits as voltage, light or radio" }
+};
+
+/* Wire order, left to right. layer = which layer adds it. */
+const SEGMENTS = [
+  { layer: 1, short: "Pre+SFD", bytes: NET.preambleSfd, title: "Preamble + start frame delimiter" },
+  { layer: 2, short: "Eth",     bytes: NET.ethHeader,   title: "Ethernet header" },
+  { layer: 3, short: "IP",      bytes: NET.ipHeader,    title: "IPv4 header" },
+  { layer: 4, short: "TCP",     bytes: NET.tcpHeader,   title: "TCP header" },
+  { layer: 6, short: "TLS",     bytes: NET.tlsHeader,   title: "TLS record header" },
+  { layer: 7, short: "HTTP data", bytes: NET.httpBytes, title: "HTTP request (the payload)" },
+  { layer: 6, short: "TLS tag", bytes: NET.tlsTrailer,  title: "TLS trailer: hidden type + integrity tag" },
+  { layer: 2, short: "FCS",     bytes: NET.fcs,         title: "Frame check sequence (Ethernet trailer)" }
+];
+const PDU = { 7: "Data", 6: "Data", 5: "Data", 4: "Segment", 3: "Packet", 2: "Frame", 1: "Bits on the wire" };
+/* Widths use bytes + a constant so tiny fields stay visible; total width grows slide by slide. */
+const PAD = 12;
+const FULL = SEGMENTS.reduce((s, x) => s + x.bytes + PAD, 0);
+
+function segHTML(s, cls) {
+  const c = `var(--l${s.layer})`, ci = `var(--l${s.layer}-ink)`;
+  return `<div class="seg ${cls}" style="--c:${c};--ci:${ci};flex:${s.bytes + PAD} 1 0" title="${s.title}: ${s.bytes} B">` +
+         `<span class="n">${s.short}</span><span class="b">${s.bytes} B</span></div>`;
+}
+
+function renderFrame(el, upto) {
+  const visible = SEGMENTS.filter(s => s.layer >= upto);
+  const total = visible.reduce((a, s) => a + s.bytes, 0);
+  const overhead = total - NET.httpBytes;
+  const widthPct = visible.reduce((a, s) => a + s.bytes + PAD, 0) / FULL * 100;
+  const added = SEGMENTS.filter(s => s.layer === upto);
+  const addedText = added.length
+    ? "New at this layer: " + added.map(s => `${s.title} (${s.bytes} B)`).join(" + ")
+    : "New at this layer: nothing. Same bytes, new responsibility";
+  const pct = total ? Math.round(overhead / total * 100) : 0;
+  const bars = visible.map(s => {
+    let cls = s.layer === upto ? "new" : "old";
+    if (s.layer === 7 && upto <= 6) cls += " enc";
+    return segHTML(s, cls);
+  }).join("");
+  el.innerHTML =
+    `<div class="frame-meta"><span>${addedText}</span>` +
+    `<span>Total <b>${total} B</b> · payload ${NET.httpBytes} B · wrappers <b>${overhead} B</b>${overhead ? ` (${pct}%)` : ""}</span></div>` +
+    `<div class="framebar-track"><div class="framebar" style="width:${widthPct.toFixed(1)}%" role="img" aria-label="${PDU[upto]}: ${total} bytes">${bars}</div></div>` +
+    (upto === 5 ? `<div class="session-bracket" style="width:${widthPct.toFixed(1)}%"><span>one TLS session / TCP connection</span></div><div style="height:14px"></div>` : "");
+}
+
+function renderTunnel(el) {
+  const parts = [
+    { short: "Outer IP", bytes: 20, c: "--sd", title: "New outer IPv4 header: branch → hub" },
+    { short: "UDP", bytes: 8, c: "--sd", title: "UDP header (NAT traversal)" },
+    { short: "ESP+IV", bytes: 16, c: "--sd", title: "IPsec ESP header + IV" },
+    { short: "Original packet (encrypted)", bytes: NET.ipTotal, c: "--l3", title: "The original 137-byte IP packet, now encrypted", enc: true },
+    { short: "ESP tail", bytes: 19, c: "--sd", title: "Padding + trailer + integrity tag" }
+  ];
+  const bars = parts.map(p =>
+    `<div class="seg ${p.enc ? "enc old" : "new"}" style="--c:var(${p.c});--ci:#fff;flex:${p.bytes + PAD} 1 0" title="${p.title}: ${p.bytes} B">` +
+    `<span class="n">${p.short}</span><span class="b">${p.bytes} B</span></div>`).join("");
+  el.innerHTML =
+    `<div class="frame-meta"><span>Tunnel wrapper (teal) around our original IP packet</span><span>Extra per packet ≈ <b>${NET.tunnelOverhead} B</b></span></div>` +
+    `<div class="framebar" role="img" aria-label="Tunnel packet">${bars}</div>`;
+}
+
+function renderMiniStack(el, here) {
+  el.innerHTML = [7,6,5,4,3,2,1].map(n => {
+    const cls = n === here ? "here" : (n > here ? "done" : "");
+    const style = n === here ? ` style="background:var(--l${n})"` : "";
+    return `<span class="${cls}"${style}>L${n} ${LAYERS[n].name}</span>`;
+  }).join("");
+}
+
+function renderBigStack(el) {
+  el.innerHTML = [7,6,5,4,3,2,1].map(n =>
+    `<div class="row" style="--c:var(--l${n});--ci:var(--l${n}-ink)"><span class="num">${n}</span><span class="nm">${LAYERS[n].name}</span><span class="job">${LAYERS[n].job}</span></div>`
+  ).join("");
+}
+
+document.querySelectorAll(".frame-block[data-upto]").forEach(el => renderFrame(el, +el.dataset.upto));
+document.querySelectorAll(".frame-block[data-tunnel]").forEach(renderTunnel);
+document.querySelectorAll(".ministack").forEach(el => renderMiniStack(el, +el.dataset.here));
+renderBigStack(document.getElementById("bigstack"));
+
+/* ===== Navigation ===== */
+const slides = [...document.querySelectorAll(".slide")];
+const count = document.getElementById("count");
+const hudTitle = document.getElementById("hudTitle");
+const progress = document.getElementById("progress");
+let idx = 0;
+
+function show(i, push = true) {
+  idx = Math.max(0, Math.min(slides.length - 1, i));
+  slides.forEach((s, k) => s.classList.toggle("active", k === idx));
+  slides[idx].scrollTop = 0;
+  count.textContent = `${idx + 1} / ${slides.length}`;
+  hudTitle.textContent = "OSI model · " + slides[idx].dataset.title;
+  progress.style.width = ((idx + 1) / slides.length * 100) + "%";
+  document.getElementById("prev").disabled = idx === 0;
+  document.getElementById("next").disabled = idx === slides.length - 1;
+  if (push) history.replaceState(null, "", "#" + (idx + 1));
+}
+function fromHash() {
+  const n = parseInt(location.hash.slice(1), 10);
+  return Number.isFinite(n) ? n - 1 : 0;
+}
+
+document.getElementById("prev").addEventListener("click", () => show(idx - 1));
+document.getElementById("next").addEventListener("click", () => show(idx + 1));
+document.addEventListener("keydown", e => {
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  if (["ArrowRight", "PageDown", " ", "Enter"].includes(e.key) && e.target.tagName !== "BUTTON") { e.preventDefault(); show(idx + 1); }
+  else if (["ArrowLeft", "PageUp", "Backspace"].includes(e.key)) { e.preventDefault(); show(idx - 1); }
+  else if (e.key === "Home") show(0);
+  else if (e.key === "End") show(slides.length - 1);
+  else if (e.key === "f" || e.key === "F") {
+    if (document.fullscreenElement) document.exitFullscreen?.();
+    else document.documentElement.requestFullscreen?.().catch(() => {});
+  }
+});
+/* Tap the left or right edge of the slide; ignore taps on text being selected */
+document.getElementById("deck").addEventListener("click", e => {
+  if (window.getSelection().toString()) return;
+  if (e.target.closest("a, button, pre, table, code")) return;
+  const x = e.clientX / window.innerWidth;
+  if (x > 0.8) show(idx + 1); else if (x < 0.2) show(idx - 1);
+});
+/* Swipe */
+let tx = null, ty = null;
+document.addEventListener("touchstart", e => { tx = e.touches[0].clientX; ty = e.touches[0].clientY; }, { passive: true });
+document.addEventListener("touchend", e => {
+  if (tx === null) return;
+  const dx = e.changedTouches[0].clientX - tx, dy = e.changedTouches[0].clientY - ty;
+  if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) show(idx + (dx < 0 ? 1 : -1));
+  tx = ty = null;
+}, { passive: true });
+window.addEventListener("hashchange", () => show(fromHash(), false));
+
+show(fromHash(), false);
+</script>
+</body>
+</html>

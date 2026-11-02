@@ -1,0 +1,4 @@
+{
+  // Tables can't be wrapped; keep the 80-column limit for prose only.
+  "MD013": { "tables": false, "code_blocks": false }
+}
